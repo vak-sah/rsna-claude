@@ -14,6 +14,8 @@ A chat instruction beats this file for that turn only. Don't silently rewrite it
 | `AGENTS.md` | How we work (this file) | Rarely |
 | `CLAUDE.md` | Nothing of its own — imports `AGENTS.md` for Claude Code | Never |
 | `STATE.md` | What's done, what's now, what's next | When the project moves — a step lands, is parked or reordered |
+| `STRATEGY.md` | How we intend to win: what the metric rewards, and every idea, ranked and priced | When a belief is falsified, a bet is priced, or an idea is spent |
+| `EXPERIMENTS.md` | The run log — one row per run, and what it measured | After every run that produced a measurement, failures included |
 | `PLAYBOOK.md` | Environment quirks, manual setup, solved problems, dead ends | When something is learned |
 | docstrings | What this specific feature does and how to change it | With their code |
 
@@ -223,20 +225,32 @@ else, that's an entanglement bug — fix the seam.
 
 ---
 
-## 7. Environment — Colab + Google Drive
+## 7. Environment — Kaggle first, Colab second
 
-The user runs, edits and tests in **Google Colab** with **Google Drive** mounted. Assume that,
-not a local machine.
+The user runs, edits and tests on **Kaggle** and in **Google Colab** with **Google Drive**
+mounted. Assume those, not a local machine.
+
+**Kaggle is the primary host**, because the competition data is ~570 GB and cannot leave it:
+anything that touches DICOM runs as a Kaggle kernel whose output the next kernel mounts
+directly. Colab is for iteration on a cached subset, and for the occasional GPU the Kaggle
+weekly quota won't cover. The same `command_center.ipynb` runs on both — it detects the host in
+the config cell, and that is the only branch in the notebook.
 
 - **Only code, config and docs go in git.** Data, weights, caches, outputs and credentials live
   in Drive and are `.gitignore`d. Path *strings* are fine to commit — it's the files that stay out.
-- **One Drive root**, set in the notebook config cell and nowhere else — not in `PLAYBOOK.md`,
-  not in a module. One place to change means nothing to keep in sync.
+- **One root per host**, set in the notebook config cell and nowhere else — not in
+  `PLAYBOOK.md`, not in a module. One place to change means nothing to keep in sync.
 - **Secrets never touch the repo** and are never printed in a cell. Colab Secrets, or a file at
   the agreed Drive path.
 - **Manual setup is one-time and explicit.** If the user must place a file by hand, give exact
   path, filename and format once, then record it in `PLAYBOOK.md` so it's never asked again.
-- Setup is repeatable from a fresh runtime: mount Drive → install → configure → run.
+- Setup is repeatable from a fresh runtime: detect host → mount Drive or check the mounted
+  competition data → clone → install → run.
+- **No competition data ever enters an agent session.** Report text, pixel data and per-study
+  rows stay on Kaggle and Colab; what comes back is counts, distributions, metrics and code.
+  This binds the user as much as the agent, and it is the one rule here with a rulebook behind
+  it rather than a preference — `PLAYBOOK.md` § Gotchas has the reasoning. Any report processing
+  runs with open-weights models on Kaggle or Colab, never through a hosted API.
 - **Tests run without Drive, network or a GPU** — CI has none of them. Anything needing real
   data takes a path argument and gets a small fixture or a temp dir in tests. If a feature can't
   be tested without Drive, that's a seam problem: the I/O and the logic aren't separated.
