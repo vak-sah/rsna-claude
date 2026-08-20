@@ -1,0 +1,7 @@
+# Minimal: this exists so pytest can import from src/ without an install step, and so the
+# test command is the same in CI, in a terminal, and in Colab. Not a packaging config —
+# nothing here is published.
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

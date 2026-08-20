@@ -1,0 +1,61 @@
+# Keeps run output out of git, so nobody has to remember a Colab setting.
+#
+# Colab's "Save in GitHub" writes straight to the repo, which is why client-side tools
+# (nbstripout, pre-commit) never fire for it — see PLAYBOOK.md, Known-bad approaches. Doing it
+# server-side is the one place that does catch every save.
+
+name: strip notebook output
+
+on:
+  push:
+    paths:
+      - "**/*.ipynb"
+
+permissions:
+  contents: write
+
+jobs:
+  strip:
+    # Skip the bot's own commit, so this can't trigger itself.
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Clear outputs and execution counts
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+
+          for path in pathlib.Path(".").rglob("*.ipynb"):
+              if ".ipynb_checkpoints" in path.parts:
+                  continue
+              nb = json.loads(path.read_text())
+              changed = False
+              for cell in nb.get("cells", []):
+                  if cell.get("cell_type") != "code":
+                      continue
+                  if cell.get("outputs"):
+                      cell["outputs"] = []
+                      changed = True
+                  if cell.get("execution_count") is not None:
+                      cell["execution_count"] = None
+                      changed = True
+              if changed:
+                  path.write_text(json.dumps(nb, indent=1, ensure_ascii=False) + "\n")
+                  print(f"stripped {path}")
+          PY
+
+      - name: Commit if anything changed
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "no output to strip"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Strip notebook output [skip ci]"
+          git push
